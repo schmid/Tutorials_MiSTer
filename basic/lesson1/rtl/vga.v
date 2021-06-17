@@ -34,9 +34,11 @@ parameter VBP = 35;     // unused time after vsync
 
 reg[9:0]  h_cnt;        // horizontal pixel counter
 reg[9:0]  v_cnt;        // vertical pixel counter
+reg[9:0] t;
 
 reg hblank;
 reg vblank;
+
 
 // both counters count from the begin of the visibla area
 
@@ -52,7 +54,7 @@ always@(posedge pclk) begin
 
 	end
 
-// veritical pixel counter
+// vertical pixel counter
 always@(posedge pclk) begin
 	// the vertical counter is processed at the begin of each hsync
 	if(h_cnt == H+HFP) begin
@@ -62,7 +64,13 @@ always@(posedge pclk) begin
 	        // generate positive vsync signal
 		if(v_cnt == V+VFP)    vs <= 1'b1;
 		if(v_cnt == V+VFP+VS) vs <= 1'b0;
-		if(v_cnt == V+VFP+VS) vblank <= 1'b1; else vblank<=1'b0;
+		
+		// vblank?
+		if(v_cnt == V+VFP+VS) begin
+		    vblank <= 1'b1;
+			 t <= t + 9'd1; // increase time step 
+		end
+		else vblank<=1'b0;
 	end
 end
 
@@ -70,6 +78,7 @@ end
 reg [13:0] video_counter;
 reg [7:0] pixel;
 reg de;
+reg[9:0]  h_cnt_off;        // horizontal pixel counter
 
 always@(posedge pclk) begin
         // The video counter is being reset at the begin of each vsync.
@@ -84,7 +93,15 @@ always@(posedge pclk) begin
 		if(h_cnt[1:0] == 2'b11)
 			video_counter <= video_counter + 14'd1;
 		
-		pixel <= (v_cnt[2] ^ h_cnt[2])?8'h00:8'hff;    // checkboard
+		//pixel <= (v_cnt[2] ^ h_cnt[2])?8'h00:8'hff;    // checkerboard
+		
+		h_cnt_off <= h_cnt + t;
+		
+		pixel <= (v_cnt[4] ^ h_cnt_off[4] )?8'h00:8'hff;    // checkerboard (bigger)
+		
+		//pixel <= (v_cnt * (h_cnt + t));    // scrolling moire
+
+		
 		de<=1;
 	end else begin
 		if(h_cnt == H+HFP) begin
@@ -100,9 +117,12 @@ always@(posedge pclk) begin
 end
 
 // seperate 8 bits into three colors (332)
-assign r = { pixel[7:5],  3'b00000 };
-assign g = { pixel[4:2],  3'b00000 };
-assign b = { pixel[1:0], 4'b000000 };
+//assign r = { pixel[7:5],  3'b00000 };
+//assign g = { pixel[4:2],  3'b00000 };
+//assign b = { pixel[1:0], 4'b000000 };
+assign r = { pixel[7:5], pixel[7:5], pixel[7:6] };
+assign g = { pixel[4:2], pixel[4:2], pixel[4:3] };
+assign b = { pixel[1:0], pixel[1:0], pixel[1:0], pixel[1:0] };
 
 //assign VGA_DE  = ~(hblank | vblank);
 assign VGA_DE = de;
